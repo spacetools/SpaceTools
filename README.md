@@ -5,7 +5,7 @@
 
 > Official repository for **SpaceTools** and the **Toolshed** system (CVPR 2026).
 
-**SpaceTools** empowers VLMs with **vision tools** and **robotic tools** to perform spatial reasoning and real-world manipulation. It introduces **Double Interactive Reinforcement Learning (DIRL)**, a two-phase training pipeline, and **Toolshed**, a distributed toolkit that enables real-time tool interaction during both RL training and inference.
+**SpaceTools** empowers VLMs with **vision tools** and **robotic tools** to perform spatial reasoning and real-world manipulation. It introduces **Double Interactive Reinforcement Learning (DIRL)**, a training pipeline with two RL phases and intermediate data collection and SFT, and **Toolshed**, a distributed toolkit that enables real-time tool interaction during both RL training and inference.
 
 ---
 
@@ -33,13 +33,13 @@ SpaceTools/
 │   ├── install_tools/            #   Per-tool conda env setup
 │   └── README.md                 #   Full Toolshed documentation
 │
-├── LLaMA-Factory/                # SFT training
+├── SpaceTools-SFT/               # SFT training (LLaMA-Factory fork)
 │   ├── scripts/spacetools/
 │   │   ├── run_sft.sh            #   SFT: data prep + training + checkpoint fix
 │   │   └── analysis/             #   Dataset balancing utilities
 │   └── README.md                 #   SFT documentation
 │
-├── verl/                         # RL training & evaluation
+├── SpaceTools-RL/                # RL training & evaluation (verl fork)
 │   ├── examples/toolshed/
 │   │   ├── run_rl_roborefer.sh   #   Step 1: point-tool-only RL (optional)
 │   │   ├── run_rl.sh             #   Step 4: full-tool RL (GRPO)
@@ -132,8 +132,8 @@ The DIRL (Double Interactive RL) pipeline has four steps. The "Double" refers to
 
 ```
 Step 1: Point-Tool RL       Step 2: Teacher Data       Step 3: SFT             Step 4: Full-Tool RL
-(verl + Toolshed)           Collection                 (LLaMA-Factory)         (verl + Toolshed)
-                            (Toolshed + teacher API)
+(SpaceTools-RL +            Collection                 (SpaceTools-SFT)        (SpaceTools-RL +
+ Toolshed)                  (Toolshed + teacher API)                            Toolshed)
                                                                                
 Base Qwen2.5-VL-3B                                     Base Qwen2.5-VL-3B      SFT checkpoint
         │                                                      │                       │
@@ -151,13 +151,13 @@ Base Qwen2.5-VL-3B                                     Base Qwen2.5-VL-3B      S
 
 ### Step 1: Point-Tool RL (Optional — pre-collected data provided)
 
-Runs in `verl/`. Trains the base Qwen2.5-VL-3B model with only the `detect_one` pointing tool (RoboRefer) on RefSpatial and RoboSpatial tasks using GRPO. This teaches the model basic tool-use patterns. The resulting interaction traces are cleaned into distillation data and used as part of the SFT training data in Step 3.
+Runs in `SpaceTools-RL/`. Trains the base Qwen2.5-VL-3B model with only the `detect_one` pointing tool (RoboRefer) on RefSpatial and RoboSpatial tasks using GRPO. This teaches the model basic tool-use patterns. The resulting interaction traces are cleaned into distillation data and used as part of the SFT training data in Step 3.
 
 Since we release the pre-collected distillation data as part of the SFT dataset, this step is optional. Run it only if you want to regenerate the data yourself.
 
 ```bash
 conda activate spacetools-rl
-cd verl
+cd SpaceTools-RL
 
 ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
     bash examples/toolshed/run_rl_roborefer.sh
@@ -165,42 +165,42 @@ ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
 
 Output: `experiments/rl_roborefer_output/global_step_XXX/`
 
-Expected time: ~10-15 hours on 8x A100 (15 epochs). The script supports automatic resume — rerun the same command to continue from the latest checkpoint. See [verl/README.md](verl/README.md) for details.
+Expected time: ~10-15 hours on 8x A100 (15 epochs). The script supports automatic resume — rerun the same command to continue from the latest checkpoint. See [SpaceTools-RL/README.md](SpaceTools-RL/README.md) for details.
 
 ### Step 2: Teacher Data Collection (Optional — pre-collected data provided)
 
 Uses a strong teacher VLM (e.g., Claude) together with Toolshed to solve spatial reasoning tasks with the full tool suite. The teacher interacts with tools in real time to produce high-quality multi-tool demonstration traces covering diverse tool combinations (depth estimation, bounding boxes, visual grounding, VLM reasoning, etc.). These traces are cleaned and combined with the distillation data from Step 1 to form the SFT dataset.
 
-Since we release the pre-collected teacher traces as part of the SFT dataset, this step is optional. The data preparation scripts in `LLaMA-Factory/scripts/spacetools/data_prep/` show how the raw traces are processed and balanced.
+Since we release the pre-collected teacher traces as part of the SFT dataset, this step is optional. The data preparation scripts in `SpaceTools-SFT/scripts/spacetools/data_prep/` show how the raw traces are processed and balanced.
 
 ### Step 3: SFT (Supervised Fine-Tuning)
 
-Runs in `LLaMA-Factory/`. Downloads the SFT dataset from HuggingFace (which includes both the point-tool RL distillation data from Step 1 and the teacher traces from Step 2), injects tool schemas into the system prompt, trains a full fine-tune on Qwen2.5-VL-3B, and fixes the checkpoint.
+Runs in `SpaceTools-SFT/`. Downloads the SFT dataset from HuggingFace (which includes both the point-tool RL distillation data from Step 1 and the teacher traces from Step 2), injects tool schemas into the system prompt, trains a full fine-tune on Qwen2.5-VL-3B, and fixes the checkpoint.
 
 ```bash
 conda activate spacetools-sft
-cd LLaMA-Factory
+cd SpaceTools-SFT
 
 # V1: reasoning only (11 tools, ~7000 samples)
-VERSION=v1 TOOL_CONFIG=../verl/examples/toolshed/toolshed_v1_config.yaml \
+VERSION=v1 TOOL_CONFIG=../SpaceTools-RL/examples/toolshed/toolshed_v1_config.yaml \
     bash scripts/spacetools/run_sft.sh
 
 # V2: full (17 tools including robot, ~7900 samples)
-VERSION=v2 TOOL_CONFIG=../verl/examples/toolshed/toolshed_v2_config.yaml \
+VERSION=v2 TOOL_CONFIG=../SpaceTools-RL/examples/toolshed/toolshed_v2_config.yaml \
     bash scripts/spacetools/run_sft.sh
 ```
 
 Output: `experiments/sft_<version>_<timestamp>/sft_checkpoint/`
 
-Expected time: ~3-4 hours on 8x A100 (3000 steps). See [LLaMA-Factory/README.md](LLaMA-Factory/README.md) for details.
+Expected time: ~3-4 hours on 8x A100 (3000 steps). See [SpaceTools-SFT/README.md](SpaceTools-SFT/README.md) for details.
 
 ### Step 4: Full-Tool RL (Reinforcement Learning with Full Tool Interaction)
 
-Runs in `verl/`. Takes the SFT checkpoint from Step 3, starts a Ray cluster with Toolshed tool actors, and runs GRPO training with multi-turn execution of all tools during rollouts.
+Runs in `SpaceTools-RL/`. Takes the SFT checkpoint from Step 3, starts a Ray cluster with Toolshed tool actors, and runs GRPO training with multi-turn execution of all tools during rollouts.
 
 ```bash
 conda activate spacetools-rl
-cd verl
+cd SpaceTools-RL
 
 SFT_CHECKPOINT=/path/to/sft_checkpoint \
 ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
@@ -210,19 +210,19 @@ DEPTH_CHECKPOINT=/path/to/depth_pro.pt \
 
 Output: `experiments/rl_<version>_<timestamp>/rl_output/global_step_XXX/`
 
-Expected time: ~8-12 hours on 8x A100 (1 epoch, ~60 steps). See [verl/README.md](verl/README.md) for details.
+Expected time: ~8-12 hours on 8x A100 (1 epoch, ~60 steps). See [SpaceTools-RL/README.md](SpaceTools-RL/README.md) for details.
 
 ---
 
 ## Evaluation
 
-Runs in `verl/`. Evaluates a model checkpoint on all 9 paper benchmarks with live tool execution. You can evaluate either your own trained checkpoint (from the pipeline above) or the pretrained checkpoint once it is released.
+Runs in `SpaceTools-RL/`. Evaluates a model checkpoint on all 9 paper benchmarks with live tool execution. You can evaluate either your own trained checkpoint (from the pipeline above) or the pretrained checkpoint once it is released.
 
 > **Note:** The pretrained model checkpoint is not yet publicly available. To reproduce the paper results now, run Steps 3-4 of the pipeline above (SFT → Full-Tool RL) to produce your own checkpoint, then evaluate it.
 
 ```bash
 conda activate spacetools-rl
-cd verl
+cd SpaceTools-RL
 
 ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
 DEPTH_CHECKPOINT=/path/to/depth_pro.pt \
@@ -266,7 +266,7 @@ All datasets are hosted on HuggingFace and downloaded automatically by the train
 The "Double" in DIRL refers to two RL phases with live tool interaction:
 
 ```
-Step 1: Point-Tool RL (verl + Toolshed)
+Step 1: Point-Tool RL (SpaceTools-RL + Toolshed)
   └── GRPO on base Qwen2.5-VL-3B with detect_one (pointing) tool only
        └── Teaches basic tool-use patterns on RefSpatial + RoboSpatial tasks
        └── Produces RL traces → cleaned into distillation data for SFT
@@ -277,12 +277,12 @@ Step 2: Teacher Data Collection (Toolshed + teacher API)
        └── Produces multi-tool demonstration traces
        └── (Pre-collected traces released; this step is optional)
 
-Step 3: SFT (LLaMA-Factory)
+Step 3: SFT (SpaceTools-SFT)
   └── Full fine-tune Qwen2.5-VL-3B on distillation data (Step 1) + teacher traces (Step 2)
        └── Vision tower frozen, language model trained
        └── Tool schemas injected into system prompt
 
-Step 4: Full-Tool RL (verl + Toolshed)
+Step 4: Full-Tool RL (SpaceTools-RL + Toolshed)
   └── GRPO on SFT checkpoint with all 11-17 tools live
        └── AgentLoopManager → ToolAgentLoop
             ├── Prompt → sglang inference → assistant response
@@ -304,7 +304,7 @@ A Ray-based distributed framework for hosting compute-heavy tools during trainin
 
 | Environment | Purpose |
 |---|---|
-| `spacetools-sft` | SFT training (LLaMA-Factory, deepspeed) |
+| `spacetools-sft` | SFT training (SpaceTools-SFT, deepspeed) |
 | `spacetools-rl` | RL training, evaluation, tool orchestration |
 | `spacetools-tool-roborefer` | RoboRefer tool actor |
 | `spacetools-tool-vlm` | VLM + SAM2 + depth tool actors |

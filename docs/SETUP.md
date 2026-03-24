@@ -32,14 +32,14 @@ conda create -n spacetools-sft python=3.11 -y
 conda activate spacetools-sft
 pip install torch==2.9.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 pip install transformers==4.57.1
-cd LLaMA-Factory && pip install -e .
+cd SpaceTools-SFT && pip install -e .
 
 # RL (also serves as the base for creating per-tool envs)
 conda create -n spacetools-rl python=3.11 -y
 conda activate spacetools-rl
 pip install "sglang[srt,openai]==0.5.6"  # pulls torch 2.9.1, transformers 4.57.1
 pip install "ray[default]==2.47.1"
-cd verl && pip install -e .
+cd SpaceTools-RL && pip install -e .
 cd SpaceTools-Toolshed && pip install -e .
 pip install "numpy<2.0.0"  # verl requires numpy<2
 pip install cachetools nvidia-cudnn-cu12==9.16.0.29
@@ -96,12 +96,12 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${CONDA_PREFIX}/lib/python3.11/site-
   is divisible by 6.
 
 - **torch 2.9.x + Conv3D**: Known PyTorch regression ([#166122](https://github.com/pytorch/pytorch/issues/166122))
-  causes slower Conv3D. LLaMA-Factory error is patched to warning. May see ~10-20% slowdown in vision encoder.
+  causes slower Conv3D. SpaceTools-SFT patches the error to a warning. May see ~10-20% slowdown in vision encoder.
 
 - **Dataset filter multiprocessing**: `filter_overlong_prompts=True` with `num_proc>1` may silently
   filter all samples. Use `filter_overlong_prompts=False` (all training scripts already do this).
 
-- **LLaMA-Factory torchrun**: Do NOT use `torchrun -m llamafactory.cli` — LLaMA-Factory internally
+- **SpaceTools-SFT torchrun**: Do NOT use `torchrun -m llamafactory.cli` — LLaMA-Factory internally
   spawns its own `torchrun`, causing double-torchrun conflicts. Use
   `FORCE_TORCHRUN=1 python -m llamafactory.cli train` instead.
 
@@ -109,7 +109,7 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${CONDA_PREFIX}/lib/python3.11/site-
   set `LD_LIBRARY_PATH` on that node too. Ray workers inherit the remote node's environment,
   not the head node's. Without this, sglang subprocesses fail with `libcudart.so.12 not found`.
 
-- **SFT checkpoint config pollution**: LLaMA-Factory (with transformers 4.57.1) saves extra sections
+- **SFT checkpoint config pollution**: SpaceTools-SFT (with transformers 4.57.1) saves extra sections
   in `config.json` and uses `Qwen2VLImageProcessorFast` in `preprocessor_config.json`. Two fixes:
   1. Remove `text_config` from `config.json`: transformers resolves `model_type` to `qwen2_5_vl_text`
      (the text submodel) instead of `qwen2_5_vl`, causing sglang to crash with

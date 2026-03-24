@@ -43,10 +43,10 @@ setup_sft() {
     # Install transformers at pinned version
     pip install transformers==$TRANSFORMERS_VERSION
 
-    # Install LLaMA-Factory in editable mode (will respect already-installed torch/transformers)
-    cd "$SCRIPT_DIR/LLaMA-Factory"
+    # Install SpaceTools-SFT in editable mode (will respect already-installed torch/transformers)
+    cd "$SCRIPT_DIR/SpaceTools-SFT"
     pip install -e ".[torch,metrics]" --no-deps 2>/dev/null || pip install -e "." --no-deps
-    # Install remaining LLaMA-Factory deps (excluding torch/transformers which are already installed)
+    # Install remaining SpaceTools-SFT deps (excluding torch/transformers which are already installed)
     pip install datasets accelerate "peft>=0.18.0" "trl>=0.18.0" torchdata \
         gradio matplotlib "tyro<0.9.0" \
         einops numpy pandas scipy \
@@ -91,8 +91,8 @@ setup_rl() {
     # Install ray (shared version with Toolshed)
     pip install "ray[default]==$RAY_VERSION"
 
-    # Install verl in editable mode
-    cd "$SCRIPT_DIR/verl"
+    # Install SpaceTools-RL in editable mode
+    cd "$SCRIPT_DIR/SpaceTools-RL"
     pip install -e "." --no-deps
     # Install verl deps (excluding torch/transformers/ray already installed)
     pip install accelerate codetiming datasets dill hydra-core \
