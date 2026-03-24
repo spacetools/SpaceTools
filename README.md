@@ -41,8 +41,8 @@ SpaceTools/
 │
 ├── verl/                         # RL training & evaluation
 │   ├── examples/toolshed/
-│   │   ├── run_rl.sh             #   RL: GRPO with live tool execution
-│   │   ├── run_rl_roborefer.sh   #   RL: roborefer-only (standalone)
+│   │   ├── run_rl_roborefer.sh   #   Step 1: point-tool-only RL (optional)
+│   │   ├── run_rl.sh             #   Step 4: full-tool RL (GRPO)
 │   │   ├── run_eval.sh           #   Evaluation on paper benchmarks
 │   │   ├── toolshed_v1_config.yaml  # 11 tools (reasoning only)
 │   │   └── toolshed_v2_config.yaml  # 17 tools (with robot)
@@ -128,11 +128,54 @@ export DEPTH_CHECKPOINT=models/depth_pro.pt
 
 ## Training Pipeline
 
-The DIRL pipeline has two phases. Each step produces a checkpoint consumed by the next.
+The DIRL (Double Interactive RL) pipeline has four steps. The "Double" refers to two RL phases with live tool interaction. Each step produces a checkpoint or data consumed by the next.
 
-### Phase 1: SFT (Supervised Fine-Tuning)
+```
+Step 1: Point-Tool RL       Step 2: Teacher Data       Step 3: SFT             Step 4: Full-Tool RL
+(verl + Toolshed)           Collection                 (LLaMA-Factory)         (verl + Toolshed)
+                            (Toolshed + teacher API)
+                                                                               
+Base Qwen2.5-VL-3B                                     Base Qwen2.5-VL-3B      SFT checkpoint
+        │                                                      │                       │
+        ▼                                                      ▼                       ▼
+  RL with detect_one         Teacher VLM (e.g.          Full fine-tune on       GRPO with all
+  tool only (GRPO)           Claude) solves tasks       distillation data +     11-17 tools live
+        │                    using Toolshed tools       teacher traces          via Toolshed
+        ▼                           │                          │                       │
+  Distillation data                 ▼                          ▼                       ▼
+  (RL traces cleaned         Teacher traces             SFT checkpoint          Final model
+   for SFT)                  (multi-tool demos)
+```
 
-Runs in `LLaMA-Factory/`. Downloads SFT data from HuggingFace, injects tool schemas, trains a full fine-tune on Qwen2.5-VL-3B, and fixes the checkpoint.
+> **Pre-collected data available.** Steps 1 and 2 produce the training data for SFT (Step 3): Step 1 generates distillation data from point-tool RL traces, and Step 2 collects multi-tool teacher demonstrations via a strong VLM API and Toolshed. We provide all of this pre-collected data in the released SFT dataset ([siyich/spacetools-sft](https://huggingface.co/datasets/siyich/spacetools-sft)), so **most users can skip Steps 1-2 and start directly from Step 3 (SFT)**. Steps 1-2 are documented here for completeness and for users who want to reproduce the full pipeline from scratch.
+
+### Step 1: Point-Tool RL (Optional — pre-collected data provided)
+
+Runs in `verl/`. Trains the base Qwen2.5-VL-3B model with only the `detect_one` pointing tool (RoboRefer) on RefSpatial and RoboSpatial tasks using GRPO. This teaches the model basic tool-use patterns. The resulting interaction traces are cleaned into distillation data and used as part of the SFT training data in Step 3.
+
+Since we release the pre-collected distillation data as part of the SFT dataset, this step is optional. Run it only if you want to regenerate the data yourself.
+
+```bash
+conda activate spacetools-rl
+cd verl
+
+ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
+    bash examples/toolshed/run_rl_roborefer.sh
+```
+
+Output: `experiments/rl_roborefer_output/global_step_XXX/`
+
+Expected time: ~10-15 hours on 8x A100 (15 epochs). The script supports automatic resume — rerun the same command to continue from the latest checkpoint. See [verl/README.md](verl/README.md) for details.
+
+### Step 2: Teacher Data Collection (Optional — pre-collected data provided)
+
+Uses a strong teacher VLM (e.g., Claude) together with Toolshed to solve spatial reasoning tasks with the full tool suite. The teacher interacts with tools in real time to produce high-quality multi-tool demonstration traces covering diverse tool combinations (depth estimation, bounding boxes, visual grounding, VLM reasoning, etc.). These traces are cleaned and combined with the distillation data from Step 1 to form the SFT dataset.
+
+Since we release the pre-collected teacher traces as part of the SFT dataset, this step is optional. The data preparation scripts in `LLaMA-Factory/scripts/spacetools/data_prep/` show how the raw traces are processed and balanced.
+
+### Step 3: SFT (Supervised Fine-Tuning)
+
+Runs in `LLaMA-Factory/`. Downloads the SFT dataset from HuggingFace (which includes both the point-tool RL distillation data from Step 1 and the teacher traces from Step 2), injects tool schemas into the system prompt, trains a full fine-tune on Qwen2.5-VL-3B, and fixes the checkpoint.
 
 ```bash
 conda activate spacetools-sft
@@ -151,9 +194,9 @@ Output: `experiments/sft_<version>_<timestamp>/sft_checkpoint/`
 
 Expected time: ~3-4 hours on 8x A100 (3000 steps). See [LLaMA-Factory/README.md](LLaMA-Factory/README.md) for details.
 
-### Phase 2: RL (Reinforcement Learning with Tool Interaction)
+### Step 4: Full-Tool RL (Reinforcement Learning with Full Tool Interaction)
 
-Runs in `verl/`. Starts a Ray cluster with Toolshed tool actors, then runs GRPO training with multi-turn tool execution during rollouts.
+Runs in `verl/`. Takes the SFT checkpoint from Step 3, starts a Ray cluster with Toolshed tool actors, and runs GRPO training with multi-turn execution of all tools during rollouts.
 
 ```bash
 conda activate spacetools-rl
@@ -175,7 +218,7 @@ Expected time: ~8-12 hours on 8x A100 (1 epoch, ~60 steps). See [verl/README.md]
 
 Runs in `verl/`. Evaluates a model checkpoint on all 9 paper benchmarks with live tool execution. You can evaluate either your own trained checkpoint (from the pipeline above) or the pretrained checkpoint once it is released.
 
-> **Note:** The pretrained model checkpoint is not yet publicly available. To reproduce the paper results now, run the full SFT → RL pipeline above to produce your own checkpoint, then evaluate it.
+> **Note:** The pretrained model checkpoint is not yet publicly available. To reproduce the paper results now, run Steps 3-4 of the pipeline above (SFT → Full-Tool RL) to produce your own checkpoint, then evaluate it.
 
 ```bash
 conda activate spacetools-rl
@@ -207,12 +250,12 @@ bash examples/toolshed/run_eval.sh /path/to/model robospatial bopgrasp blinkdept
 
 All datasets are hosted on HuggingFace and downloaded automatically by the training scripts.
 
-| Dataset | Samples | Description |
-|---|---|---|
-| [spacetools-sft](https://huggingface.co/datasets/siyich/spacetools-sft) | ~7900 | SFT data in ShareGPT format with images |
-| [spacetools-rlfulltools](https://huggingface.co/datasets/siyich/spacetools-rlfulltools) | ~5500 | RL prompts for full tool suite |
-| [spacetools-rlpointtools](https://huggingface.co/datasets/siyich/spacetools-rlpointtools) | ~4000 | RL prompts for point/refer tools only |
-| [spacetools-eval-benchmarks](https://huggingface.co/datasets/siyich/spacetools-eval-benchmarks) | — | Evaluation benchmark parquets |
+| Dataset | Samples | Used in | Description |
+|---|---|---|---|
+| [spacetools-rlpointtools](https://huggingface.co/datasets/siyich/spacetools-rlpointtools) | ~4000 | Step 1 (Point-Tool RL) | RL prompts for point/refer tools only |
+| [spacetools-sft](https://huggingface.co/datasets/siyich/spacetools-sft) | ~7900 | Step 3 (SFT) | SFT data in ShareGPT format with images; includes pre-collected distillation data from Step 1 and teacher traces from Step 2 |
+| [spacetools-rlfulltools](https://huggingface.co/datasets/siyich/spacetools-rlfulltools) | ~5500 | Step 4 (Full-Tool RL) | RL prompts for full tool suite |
+| [spacetools-eval-benchmarks](https://huggingface.co/datasets/siyich/spacetools-eval-benchmarks) | — | Evaluation | Evaluation benchmark parquets |
 
 ---
 
@@ -220,14 +263,27 @@ All datasets are hosted on HuggingFace and downloaded automatically by the train
 
 ### Double Interactive RL (DIRL)
 
+The "Double" in DIRL refers to two RL phases with live tool interaction:
+
 ```
-Phase 1: SFT (LLaMA-Factory)
-  └── Full fine-tune Qwen2.5-VL-3B with tool-augmented conversations
+Step 1: Point-Tool RL (verl + Toolshed)
+  └── GRPO on base Qwen2.5-VL-3B with detect_one (pointing) tool only
+       └── Teaches basic tool-use patterns on RefSpatial + RoboSpatial tasks
+       └── Produces RL traces → cleaned into distillation data for SFT
+       └── (Pre-collected data released; this step is optional)
+
+Step 2: Teacher Data Collection (Toolshed + teacher API)
+  └── Strong teacher VLM (e.g., Claude) solves tasks with full Toolshed tools
+       └── Produces multi-tool demonstration traces
+       └── (Pre-collected traces released; this step is optional)
+
+Step 3: SFT (LLaMA-Factory)
+  └── Full fine-tune Qwen2.5-VL-3B on distillation data (Step 1) + teacher traces (Step 2)
        └── Vision tower frozen, language model trained
        └── Tool schemas injected into system prompt
 
-Phase 2: RL (verl + Toolshed)
-  └── GRPO training with multi-turn tool interaction
+Step 4: Full-Tool RL (verl + Toolshed)
+  └── GRPO on SFT checkpoint with all 11-17 tools live
        └── AgentLoopManager → ToolAgentLoop
             ├── Prompt → sglang inference → assistant response
             ├── Parse tool calls (hermes format)
