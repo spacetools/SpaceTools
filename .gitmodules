@@ -1,0 +1,9 @@
+[submodule "SpaceTools-Toolshed"]
+	path = SpaceTools-Toolshed
+	url = https://github.com/NVlabs/SpaceTools-Toolshed.git
+[submodule "LLaMA-Factory"]
+	path = LLaMA-Factory
+	url = https://github.com/ChicyChen/SpaceTools-SFT.git
+[submodule "verl"]
+	path = verl
+	url = https://github.com/ChicyChen/SpaceTools-RL.git

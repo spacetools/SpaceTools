@@ -1,0 +1,17 @@
+# Experiment outputs and logs
+experiments/
+*.log
+
+# Downloaded model weights
+models/
+
+# Core dumps
+core.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# OS
+.DS_Store
