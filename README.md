@@ -63,7 +63,7 @@ Each sub-directory is a git submodule with its own upstream tracking.
 
 ## Prerequisites
 
-- **Hardware**: 8x A100 (80GB) GPUs recommended. Minimum 8x GPUs with 40GB+ VRAM each. The tool actors consume ~2 GPUs, leaving 6 for training.
+- **Hardware**: 2x nodes with 8x A100 (80GB) GPUs each (16 GPUs total) recommended. One node hosts the Toolshed tool actors, the other runs RL training. For SFT (Step 3), a single 8-GPU node is sufficient.
 - **Software**: Linux, CUDA 12.x, conda (miniconda or anaconda)
 - **Storage**: ~50GB for conda environments, ~20GB for datasets (downloaded automatically), ~30GB for model checkpoints
 
@@ -165,7 +165,7 @@ ROBOREFER_MODEL=/path/to/RoboRefer-8B-SFT \
 
 Output: `experiments/rl_roborefer_output/global_step_XXX/`
 
-Expected time: ~10-15 hours on 8x A100 (15 epochs). The script supports automatic resume — rerun the same command to continue from the latest checkpoint. See [SpaceTools-RL/README.md](SpaceTools-RL/README.md) for details.
+Expected time: ~10-15 hours on 2x8 A100 (15 epochs). The script supports automatic resume — rerun the same command to continue from the latest checkpoint. See [SpaceTools-RL/README.md](SpaceTools-RL/README.md) for details.
 
 ### Step 2: Teacher Data Collection (Optional — pre-collected data provided)
 
@@ -210,7 +210,9 @@ DEPTH_CHECKPOINT=/path/to/depth_pro.pt \
 
 Output: `experiments/rl_<version>_<timestamp>/rl_output/global_step_XXX/`
 
-Expected time: ~8-12 hours on 8x A100 (1 epoch, ~60 steps). See [SpaceTools-RL/README.md](SpaceTools-RL/README.md) for details.
+Expected time: ~8-12 hours on 2x8 A100 (1 epoch, ~86 steps at ~5-7 min/step). Requires 2 nodes: one for Toolshed tool actors, one for training. The script starts a multi-node Ray cluster automatically when launched via SLURM with `--nodes=2`.
+
+The script auto-resumes from the latest checkpoint in `OUTPUT_DIR`, so for SLURM clusters with shorter wall-time limits, simply resubmit the same job to continue training. See [SpaceTools-RL/examples/toolshed/README.md](SpaceTools-RL/examples/toolshed/README.md) for a wrapper example.
 
 ---
 
