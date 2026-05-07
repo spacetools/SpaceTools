@@ -320,10 +320,11 @@ All environments share Python 3.11 and Ray 2.47.1 for cross-env compatibility.
 ## Citation
 
 ```bibtex
-@misc{chen2025spacetoolstoolaugmentedspatialreasoning,
+@inproceedings{chen2026spacetools,
     title={SpaceTools: Tool-Augmented Spatial Reasoning via Double Interactive RL},
-    author={Siyi Chen and Mikaela Angelina Uy and Chan Hee Song and Faisal Ladhak and Adithyavairavan Murali and Qing Qu and Stan Birchfield and Valts Blukis and Jonathan Tremblay},
-    year={2025},
+    author={Chen, Siyi and Uy, Mikaela Angelina and Song, Chan Hee and Ladhak, Faisal and Murali, Adithyavairavan and Qu, Qing and Birchfield, Stan and Blukis, Valts and Tremblay, Jonathan},
+    booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    year={2026},
     eprint={2512.04069},
     archivePrefix={arXiv},
     primaryClass={cs.CV},
