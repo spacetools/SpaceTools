@@ -20,7 +20,7 @@
 | RL dataset (full tools) | [siyich/spacetools-rlfulltools](https://huggingface.co/datasets/siyich/spacetools-rlfulltools) |
 | RL dataset (point tools) | [siyich/spacetools-rlpointtools](https://huggingface.co/datasets/siyich/spacetools-rlpointtools) |
 | Evaluation benchmarks | [siyich/spacetools-eval-benchmarks](https://huggingface.co/datasets/siyich/spacetools-eval-benchmarks) |
-| Pretrained model checkpoint | Coming soon — follow this repo for updates |
+| Pretrained model checkpoint | [siyich/spacetools-ckpt](https://huggingface.co/siyich/spacetools-ckpt) |
 
 ---
 
@@ -218,9 +218,9 @@ The script auto-resumes from the latest checkpoint in `OUTPUT_DIR`, so for SLURM
 
 ## Evaluation
 
-Runs in `SpaceTools-RL/`. Evaluates a model checkpoint on all 9 paper benchmarks with live tool execution. You can evaluate either your own trained checkpoint (from the pipeline above) or the pretrained checkpoint once it is released.
+Runs in `SpaceTools-RL/`. Evaluates a model checkpoint on all 9 paper benchmarks with live tool execution. You can evaluate either your own trained checkpoint from the pipeline above or the released pretrained checkpoint.
 
-> **Note:** The pretrained model checkpoint is not yet publicly available. To reproduce the paper results now, run Steps 3-4 of the pipeline above (SFT → Full-Tool RL) to produce your own checkpoint, then evaluate it.
+Released checkpoint: [siyich/spacetools-ckpt](https://huggingface.co/siyich/spacetools-ckpt).
 
 ```bash
 conda activate spacetools-rl
